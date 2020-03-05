@@ -1,13 +1,14 @@
 #!/bin/bash
 # Audio related functions for Jarvis
 
-# Public: play an audio file to speakers  
+# Public: play an audio file to speakers
 # $1: audio file to play
 jv_play () {
-    [ "$platform" = "linux" ] && local play_export="AUDIODRIVER=alsa" || local play_export='' # is this still needed?
-    [ -s "$1" ] && eval "$play_export play -V1 -q $1 tempo $tempo" #591 sox bug with empty audio files
+#    [ "$platform" = "linux" ] && local play_export="AUDIODRIVER=alsa" || local play_export='' # is this still needed?
+#    [ -s "$1" ] && eval "$play_export play -V1 -q $1 tempo $tempo" #591 sox bug with empty audio files
+    [ -s "$1" ] && omxplayer $1 > /dev/null 2>&1
     if [ "$?" -ne 0 ]; then
-        jv_error "ERROR: play command failed"
+        jv_error "ERROR: omxplayer command failed"
         jv_warning "HELP: Verify your speaker in Settings > Audio > Speaker"
         jv_exit 1
     fi
@@ -33,12 +34,12 @@ jv_auto_levels () {
     local max_silence_level=5
     local min_voice_level=30
     local max_voice_level=95
-    
+
     dialog_msg <<EOM
 The following steps will automatically adjust your audio levels to best suit your microphone sensitivity and environment noise.
 EOM
     while true; do
-        
+
         while true; do
             dialog_msg <<EOM
 Automatic setup of silence level.
@@ -49,7 +50,7 @@ EOM
             clear
             jv_record_duration $audiofile 3
             local silence_level="$(( 10#$(sox $audiofile -n stats 2>&1 | sed -n 's#^Max level[^0-9]*\([0-9]*\).\([0-9]\{0,2\}\).*#\1\2#p') ))"
-            
+
             if [ $silence_level -le $max_silence_level ]; then
                 break
             else
@@ -67,7 +68,7 @@ EOM
                 esac
             fi
         done
-        
+
         while true; do
             dialog_msg <<EOM
 Automatic setup of voice level.
@@ -78,7 +79,7 @@ EOM
             clear
             jv_record_duration $audiofile 3
             local voice_level="$(( 10#$(sox $audiofile -n stats 2>&1 | sed -n 's#^Max level[^0-9]*\([0-9]*\).\([0-9]\{0,2\}\).*#\1\2#p') ))"
-            
+
             if [ $voice_level -lt $min_voice_level ]; then
                 options=("Retry and speak louder/closer (recommended first)"
                          "Increase microphone gain"
@@ -109,12 +110,12 @@ EOM
         done
         break
     done
-    
+
     local sox_level="$(perl -e "print $silence_level*2+0.1")"
     min_noise_perc_to_start="$sox_level%"
     min_silence_level_to_stop="$sox_level%"
     #configure "save" #done when exiting settings menu / completing wizard
-    
+
     dialog_msg <<EOM
 Results:
 - Silence level: $silence_level% (max $max_silence_level%)
@@ -129,7 +130,7 @@ EOM
 LISTEN_COMMAND () {
     RECORD "$audiofile" "$jv_timeout"
     [ $? -eq 124 ] && return 124
-    
+
     duration=$(sox $audiofile -n stat 2>&1 | sed -n 's#^Length[^0-9]*\([0-9]*\).\([0-9]\)*$#\1\2#p')
     $verbose && jv_debug "DEBUG: speech duration was $duration (10 = 1 sec)"
     if [ "$duration" -gt 40 ]; then
@@ -158,7 +159,7 @@ LISTEN_TRIGGER () {
             continue
         elif [ "$duration" -gt 20 ]; then
             $verbose && jv_debug "DEBUG: too long for a trigger (min 0.5 max 1.5 sec), ignoring..." || printf '#'
-            sleep 1 # BUG 
+            sleep 1 # BUG
             continue
         else
             break
